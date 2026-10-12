@@ -1,24 +1,30 @@
 ---
 /**
+ * Reaction buttons for a post page (reactions plugin).
  * 記事ページに置くリアクションボタン（reactions プラグイン用）
  *
- * 使い方（記事テンプレート内）:
+ * Usage in a post template:
  *   import Reactions from "../components/Reactions.astro";
- *   <Reactions contentId={post.id} />
+ *   <Reactions contentId={post.data.id} />
  *
- * ボタンの種類はプラグインの管理画面（サイドバー > Reactions）で変更できます。
+ * Pass the database ID (`post.data.id`), not `post.id`: `post.id` is the slug,
+ * which changes when a post is renamed and contains "/" for translations.
+ *
+ * Buttons are configured in the plugin's admin page (sidebar > Reactions).
  */
 interface Props {
 	contentId: string;
-	/** ボタンの上に出す見出し（空文字で非表示） */
+	/** Heading above the buttons. Empty string hides it. */
 	heading?: string;
+	/** Accessible name for the button group. */
+	label?: string;
 }
-const { contentId, heading = "この記事どうでした？" } = Astro.props;
+const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.props;
 ---
 
 <emdash-reactions data-content-id={contentId}>
 	{heading && <p class="rx-heading">{heading}</p>}
-	<div class="rx-buttons" role="group" aria-label="リアクション">
+	<div class="rx-buttons" role="group" aria-label={label}>
 		<span class="rx-loading">…</span>
 	</div>
 </emdash-reactions>
@@ -29,7 +35,7 @@ const { contentId, heading = "この記事どうでした？" } = Astro.props;
 	type Reaction = { key: string; emoji: string; label: string; count: number };
 	type State = { ok: boolean; error?: string; reactions: Reaction[]; total: number; mine: string | null };
 
-	/** IPが取れない環境（ローカル開発）用の匿名ID */
+	/** Anonymous ID for environments without a client IP (local dev) */
 	function visitorId(): string | undefined {
 		try {
 			let id = localStorage.getItem("rx-visitor");
@@ -79,7 +85,7 @@ const { contentId, heading = "この記事どうでした？" } = Astro.props;
 			if (vid) q.set("visitorId", vid);
 			const state = await call(`state?${q}`);
 			if (state) this.#render(state);
-			else this.hidden = true; // プラグイン未導入などのときは静かに隠す
+			else this.hidden = true; // plugin missing or failing: hide (reason is logged above)
 		}
 
 		#render(state: State) {
@@ -121,8 +127,9 @@ const { contentId, heading = "この記事どうでした？" } = Astro.props;
 <style>
 	emdash-reactions {
 		--rx-border: color-mix(in srgb, currentColor 18%, transparent);
-		--rx-active: color-mix(in srgb, #e8508a 16%, transparent);
-		--rx-active-border: #e8508a;
+		/* Override --rx-accent from your theme to match your site's accent colour. */
+		--rx-active: color-mix(in srgb, var(--rx-accent, #e8508a) 16%, transparent);
+		--rx-active-border: var(--rx-accent, #e8508a);
 		display: block;
 		margin-block: 2.5rem 1rem;
 		text-align: center;

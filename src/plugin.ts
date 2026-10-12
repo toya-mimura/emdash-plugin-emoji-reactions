@@ -20,7 +20,7 @@ import { z } from "zod";
 type ReactionDef = { key: string; emoji: string; label: string };
 
 /** 未設定時のデフォルト（key=emoji:ラベル をカンマ区切りで保存） */
-const DEFAULT_SPEC = "love=💗:すき, hmm=🤔:ふむ, whistle=😗:ほー";
+const DEFAULT_SPEC = "love=💗:Love, hmm=🤔:Hmm, whistle=😗:Whoa";
 const MAX_REACTIONS = 6;
 
 const KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
@@ -49,7 +49,7 @@ function parseSpec(spec: string): ReactionDef[] {
 }
 
 async function loadReactions(ctx: PluginContext): Promise<{ spec: string; defs: ReactionDef[] }> {
-	const spec = (await ctx.kv.get<string>("settings:spec")) ?? DEFAULT_SPEC;
+	const spec = (await ctx.settings.get<string>("spec")) ?? DEFAULT_SPEC;
 	const defs = parseSpec(spec);
 	return defs.length > 0 ? { spec, defs } : { spec: DEFAULT_SPEC, defs: parseSpec(DEFAULT_SPEC) };
 }
@@ -168,7 +168,47 @@ const adminInteraction = z.discriminatedUnion("type", [
 
 // ---------- 管理画面（Block Kit） ----------
 
-async function renderAdmin(ctx: PluginContext): Promise<BlockResponse> {
+/** 管理画面の文言。EmDash の管理画面ロケールが ja なら日本語、それ以外は英語 */
+const MESSAGES = {
+	en: {
+		statPosts: "Posts with reactions",
+		statVotes: "Active votes",
+		statButtons: "Buttons",
+		topHeader: "Top 10 posts",
+		empty: "No reactions yet",
+		total: "Total",
+		updated: "Last",
+		settingsHeader: "Buttons",
+		help: "Format: key=emoji:label, comma separated (up to 6). Keys start with a lowercase letter. Removing a key hides its button but keeps its counts.",
+		fieldLabel: "Reactions",
+		save: "Save",
+		saved: "Saved",
+		invalid: "No valid buttons. Check the format.",
+	},
+	ja: {
+		statPosts: "リアクションされた記事",
+		statVotes: "投票数（現在有効）",
+		statButtons: "ボタン",
+		topHeader: "よく押された記事 Top 10",
+		empty: "まだリアクションはありません",
+		total: "合計",
+		updated: "最終",
+		settingsHeader: "ボタンの設定",
+		help: "書式: key=絵文字:ラベル をカンマ区切り（最大6個）。keyは英小文字で始める。key を消すとそのボタンは非表示になりますが、集計値は残ります。",
+		fieldLabel: "リアクション",
+		save: "保存",
+		saved: "保存しました",
+		invalid: "有効なボタンがありません。書式を確認してください",
+	},
+} as const;
+
+type Messages = (typeof MESSAGES)[keyof typeof MESSAGES];
+
+function messagesFor(locale: string | undefined): Messages {
+	return locale?.toLowerCase().startsWith("ja") ? MESSAGES.ja : MESSAGES.en;
+}
+
+async function renderAdmin(ctx: PluginContext, t: Messages): Promise<BlockResponse> {
 	const { spec, defs } = await loadReactions(ctx);
 	const top = await ctx.storage.counts.query({ orderBy: { total: "desc" }, limit: 10 });
 	const totalDocs = await ctx.storage.counts.count();
@@ -180,22 +220,22 @@ async function renderAdmin(ctx: PluginContext): Promise<BlockResponse> {
 			{
 				type: "stats",
 				items: [
-					{ label: "リアクションされた記事", value: totalDocs },
-					{ label: "投票数（現在有効）", value: totalVotes },
-					{ label: "ボタン", value: defs.map((d) => d.emoji).join(" ") },
+					{ label: t.statPosts, value: totalDocs },
+					{ label: t.statVotes, value: totalVotes },
+					{ label: t.statButtons, value: defs.map((d) => d.emoji).join(" ") },
 				],
 			},
 			{ type: "divider" },
-			{ type: "header", text: "よく押された記事 Top 10" },
+			{ type: "header", text: t.topHeader },
 			{
 				type: "table",
 				page_action_id: "ranking_page",
-				empty_text: "まだリアクションはありません",
+				empty_text: t.empty,
 				columns: [
 					{ key: "contentId", label: "contentId", format: "code" },
 					...defs.map((d) => ({ key: d.key, label: d.emoji, format: "number" as const })),
-					{ key: "total", label: "合計", format: "number" },
-					{ key: "updatedAt", label: "最終", format: "relative_time" },
+					{ key: "total", label: t.total, format: "number" },
+					{ key: "updatedAt", label: t.updated, format: "relative_time" },
 				],
 				rows: top.items.map(({ data }) => {
 					const doc = data as CountsDoc;
@@ -209,10 +249,10 @@ async function renderAdmin(ctx: PluginContext): Promise<BlockResponse> {
 				}),
 			},
 			{ type: "divider" },
-			{ type: "header", text: "ボタンの設定" },
+			{ type: "header", text: t.settingsHeader },
 			{
 				type: "context",
-				text: "書式: key=絵文字:ラベル をカンマ区切り（最大6個）。keyは英小文字で始める。key を消すとそのボタンは非表示になりますが、集計値は残ります。",
+				text: t.help,
 			},
 			{
 				type: "form",
@@ -221,12 +261,12 @@ async function renderAdmin(ctx: PluginContext): Promise<BlockResponse> {
 					{
 						type: "text_input",
 						action_id: "spec",
-						label: "リアクション",
+						label: t.fieldLabel,
 						placeholder: DEFAULT_SPEC,
 						initial_value: spec,
 					},
 				],
-				submit: { label: "保存", action_id: "save" },
+				submit: { label: t.save, action_id: "save" },
 			},
 		],
 	};
@@ -318,20 +358,21 @@ const plugin: SandboxedPlugin = {
 				const parsed = adminInteraction.safeParse(routeCtx.input);
 				if (!parsed.success) return { blocks: [] };
 				const it = parsed.data;
+				const t = messagesFor(routeCtx.ui?.locale);
 
 				if (it.type === "form_submit" && it.action_id === "save") {
 					const defs = parseSpec(it.values.spec);
 					if (defs.length === 0) {
 						return {
-							...(await renderAdmin(ctx)),
-							toast: { message: "有効なボタンがありません。書式を確認してください", type: "error" },
+							...(await renderAdmin(ctx, t)),
+							toast: { message: t.invalid, type: "error" },
 						};
 					}
 					const normalized = defs.map((d) => `${d.key}=${d.emoji}:${d.label}`).join(", ");
-					await ctx.kv.set("settings:spec", normalized);
-					return { ...(await renderAdmin(ctx)), toast: { message: "保存しました", type: "success" } };
+					await ctx.settings.set("spec", normalized);
+					return { ...(await renderAdmin(ctx, t)), toast: { message: t.saved, type: "success" } };
 				}
-				return renderAdmin(ctx);
+				return renderAdmin(ctx, t);
 			},
 		},
 	},

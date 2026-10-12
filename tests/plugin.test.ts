@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createPluginTestHost, type PluginTestHost } from "@emdash-cms/plugin-test";
+import {
+	createPluginRuntimeTestHost,
+	createPluginTestHost,
+	type PluginRuntimeTestHost,
+	type PluginTestHost,
+} from "@emdash-cms/plugin-test";
 
 let host: PluginTestHost | undefined;
+let runtime: PluginRuntimeTestHost | undefined;
 
 afterEach(async () => {
 	await host?.dispose();
 	host = undefined;
+	await runtime?.dispose();
+	runtime = undefined;
 });
 
 const reader = (ip: string) => ({
@@ -17,7 +25,7 @@ const reader = (ip: string) => ({
 type State = {
 	ok: boolean;
 	error?: string;
-	reactions: Array<{ key: string; emoji: string; count: number }>;
+	reactions: Array<{ key: string; emoji: string; label: string; count: number }>;
 	total: number;
 	mine: string | null;
 };
@@ -34,6 +42,7 @@ describe("reactions", () => {
 		)) as State;
 		expect(s.ok).toBe(true);
 		expect(s.reactions.map((r) => r.emoji)).toEqual(["💗", "🤔", "😗"]);
+		expect(s.reactions.map((r) => r.label)).toEqual(["Love", "Hmm", "Whoa"]);
 		expect(s.total).toBe(0);
 		expect(s.mine).toBeNull();
 	});
@@ -103,5 +112,13 @@ describe("reactions", () => {
 			{ ...reader("3.3.3.3"), method: "GET" },
 		)) as State;
 		expect(s.reactions.map((r) => r.key)).toEqual(["fire", "cry"]);
+	});
+
+	it("renders the admin page in the admin locale", async () => {
+		runtime = await createPluginRuntimeTestHost();
+		const en = JSON.stringify(await runtime.admin.loadPage("/reactions", { locale: "en" }));
+		expect(en).toContain("Top 10 posts");
+		const ja = JSON.stringify(await runtime.admin.loadPage("/reactions", { locale: "ja" }));
+		expect(ja).toContain("よく押された記事 Top 10");
 	});
 });

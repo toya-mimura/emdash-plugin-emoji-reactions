@@ -1,44 +1,39 @@
-# reactions — EmDash リアクションボタン プラグイン
+# Reactions — emoji reaction buttons for EmDash
 
-記事ページに 💗 🤔 😗 のようなリアクションボタンを置くサンドボックス型プラグインです。
-読者は1記事につき1つだけ選べます（もう一度押すと取り消し、別のを押すと付け替え）。
+[日本語](./README.ja.md)
 
-- 追加のD1は不要（EmDashのDBにプラグイン専用領域として保存）
-- IPアドレスはそのまま保存せず、サイト固有の塩付きハッシュで「同じ人」を判定
-- ボタンの種類・数（最大6個）は管理画面から変更可能
-- 管理画面に「よく押された記事 Top 10」を表示
+A sandboxed EmDash plugin that adds emoji reaction buttons (💗 🤔 😗 by default) to your posts.
+Each reader picks one reaction per post: clicking it again removes it, clicking another one switches.
 
-## フォルダ構成
+- No extra database: data lives in the plugin's own EmDash storage.
+- No raw IPs stored (see [Privacy](#privacy)).
+- Up to 6 buttons, configurable from the admin page.
+- Admin page shows the 10 most-reacted posts.
+- No capabilities and no network access.
 
-```
-reactions/
-├── emdash-plugin.jsonc      # マニフェスト（権限・storage・管理ページの宣言）
-├── src/plugin.ts            # 本体（state / react / admin の3ルート）
-├── tests/plugin.test.ts     # Worker Loader上で動くテスト
-└── site-snippets/
-    └── Reactions.astro      # サイト側に置くボタンのコンポーネント
-```
+> **The plugin does not render anything on its own.** After installing it, add the
+> `Reactions.astro` component to your post template ([step 3](#3-add-the-buttons-to-your-post-template)).
+> Without it, the plugin runs but readers see no buttons.
 
-## 1. プラグインをビルド
+## Requirements
+
+- EmDash 1.x on Cloudflare (D1)
+- Workers Paid plan, for the Worker Loader binding that sandboxed plugins run in
+
+## 1. Build
 
 ```bash
-cd reactions
 pnpm install
-pnpm run test     # 任意：本番と同じサンドボックスで動作確認（最後に build も走る）
-pnpm run build    # dist/ ができる
+pnpm run test    # validate + tests in the production sandbox, then build
+pnpm run build   # dist/
 ```
 
-> **注意:** テストの途中では `dist/index.mjs` が一時的にルート一覧（`"routes"`）抜きで書き出されます。
-> `pnpm run test` は最後に build し直すので通常は問題ありませんが、テストを途中で止めたときなどは
-> サイトに組み込む前に `dist/index.mjs` に `"routes"` が入っているか確認してください。
-> 抜けていると公開ルートが管理者専用扱いになり、`state` が `CSRF_REJECTED` を返してボタンが表示されません。
+## 2. Register the plugin in your site
 
-## 2. EmDash サイトに登録
-
-サイトのフォルダで（reactions と同じ階層に置いた場合）:
+From your site's folder (with this repo checked out next to it):
 
 ```bash
-pnpm add file:../reactions
+pnpm add file:../emdash-plugin-reactions
 ```
 
 `astro.config.mjs`:
@@ -55,48 +50,78 @@ emdash({
 });
 ```
 
-`wrangler.jsonc`（Workers Paid が必要。テンプレートではコメントアウトされている）:
+`wrangler.jsonc` (commented out in the templates):
 
 ```jsonc
 "worker_loaders": [{ "binding": "LOADER" }]
 ```
 
-`src/worker.ts` で `PluginBridge` を export していることも確認してください（`*-cloudflare` テンプレートなら既に入っています）。
+Also make sure `src/worker.ts` exports `PluginBridge` (the `*-cloudflare` templates already do).
 
-## 3. 記事テンプレートにボタンを置く
+> If you copy `dist/` into your site instead of installing the package, check that
+> `dist/index.mjs` contains `"routes"`. Without it EmDash treats the public routes as
+> private, `state` answers `CSRF_REJECTED`, and the buttons stay hidden.
 
-`site-snippets/Reactions.astro` をサイトの `src/components/` にコピーして、記事ページで:
+## 3. Add the buttons to your post template
+
+Copy `site-snippets/Reactions.astro` to your site's `src/components/` and use it on the post page:
 
 ```astro
 ---
 import Reactions from "../../components/Reactions.astro";
-// post は getEmDashEntry などで取得済みの記事
+// `post` comes from getEmDashEntry()
 ---
 <article>
-  ...本文...
-  <Reactions contentId={post.id} />
+  ...body...
+  <Reactions contentId={post.data.id} heading="Leave a reaction" />
 </article>
 ```
 
-## 4. ボタンを変える
+Use `post.data.id` (the database ID), not `post.id` (the slug): the slug changes when a post is
+renamed, and translated slugs contain `/`, which the plugin rejects.
 
-管理画面サイドバーの **Reactions** を開き、「リアクション」欄を編集して保存します。
+Props: `contentId` (required), `heading` (empty string hides it), `label` (accessible name of the
+button group). Set `--rx-accent` in your CSS to match your site's accent colour.
+
+If the buttons don't show up, open the browser console: failures are logged as
+`[reactions] state: HTTP 403 CSRF_REJECTED ...`.
+
+## 4. Change the buttons
+
+Open **Reactions** in the admin sidebar and edit the "Reactions" field:
 
 ```
-love=💗:すき, hmm=🤔:ふむ, whistle=😗:ほー
+love=💗:Love, hmm=🤔:Hmm, whistle=😗:Whoa
 ```
 
-`key=絵文字:ラベル` をカンマ区切り。key は英小文字で始める（集計のIDになるので、後から変えると別のボタン扱いになります）。
+Comma-separated `key=emoji:label`, up to 6. Keys start with a lowercase letter. Counts are stored
+per key, so renaming a key starts a new button; removing a key hides it but keeps its counts.
+The admin page follows the admin locale (Japanese or English).
 
 ## API
 
-| ルート | メソッド | 入力 | 説明 |
+| Route | Method | Input | Description |
 |---|---|---|---|
-| `/_emdash/api/plugins/reactions/state` | GET | `contentId` | 集計と自分の選択 |
-| `/_emdash/api/plugins/reactions/react` | POST | `{ contentId, reaction }` | 押す／付け替え／取り消し |
+| `/_emdash/api/plugins/reactions/state` | GET | `contentId` | Counts and the reader's own choice |
+| `/_emdash/api/plugins/reactions/react` | POST | `{ contentId, reaction }` | Add / switch / remove |
 
-## 注意
+Both routes are public. `contentId` must match `[A-Za-z0-9_\-:.]{1,128}`.
 
-- 同じIP＋同じブラウザ(UA)は「同じ人」扱いです。家族やオフィスで同じIP・同じブラウザだと1票になります。厳密な投票システムではなく、気軽な反応ボタン用です。
-- 公開ルートなので誰でも叩けます。気になる場合は Cloudflare の Rate Limiting ルールで `/_emdash/api/plugins/reactions/react` に制限をかけてください。
-- `publisher` は仮の値です。自分のサイトで使うだけならそのままで構いません。レジストリに公開する場合は Atmosphere アカウントの DID に置き換えてください。
+## Privacy
+
+- The plugin identifies "the same reader" by hashing their IP address and User-Agent with a random
+  per-site salt (SHA-256, truncated). The IP address and User-Agent themselves are never stored.
+- When no client IP is available (local development), the browser sends a random ID kept in
+  `localStorage` (`rx-visitor`) instead.
+- Stored per vote: post ID, the hash, the chosen reaction, and a timestamp. No cookies.
+
+## Limitations
+
+- Readers behind the same IP using the same browser count as one. This is a casual reaction
+  button, not a voting system.
+- The routes are public. If you need to, add a Cloudflare Rate Limiting rule for
+  `/_emdash/api/plugins/reactions/react`.
+
+## License
+
+MIT
