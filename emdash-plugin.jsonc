@@ -1,0 +1,30 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "reactions",
+	// 自分のサイトで使うだけなら仮の値のままで動きます。
+	// レジストリに公開する場合は Atmosphere アカウントの DID に置き換えてください。
+	"publisher": "did:plc:replace-me",
+
+	"license": "MIT",
+	"author": { "name": "may" },
+	"security": { "email": "security@example.com" },
+	"name": "Reactions",
+	"description": "Emoji reaction buttons for posts (one vote per reader).",
+	"keywords": ["reactions", "like", "emoji"],
+
+	// Trust contract
+	// 外部通信もコンテンツ読み取りも不要。プラグイン専用のstorage/settings/kvだけを使う。
+	"capabilities": [],
+	"allowedHosts": [],
+	"storage": {
+		// 記事ごとの集計: id = contentId
+		"counts": { "indexes": ["total", "updatedAt"] },
+		// 誰がどれを押したか: id = `${contentId}:${voterHash}`
+		"votes": { "indexes": ["contentId", ["contentId", "reaction"]] },
+	},
+
+	"admin": {
+		"pages": [{ "path": "/reactions", "label": "Reactions", "icon": "heart" }],
+	},
+}
