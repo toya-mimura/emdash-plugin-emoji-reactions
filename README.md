@@ -24,9 +24,14 @@ reactions/
 ```bash
 cd reactions
 pnpm install
-pnpm run test     # 任意：本番と同じサンドボックスで動作確認
+pnpm run test     # 任意：本番と同じサンドボックスで動作確認（最後に build も走る）
 pnpm run build    # dist/ ができる
 ```
+
+> **注意:** テストの途中では `dist/index.mjs` が一時的にルート一覧（`"routes"`）抜きで書き出されます。
+> `pnpm run test` は最後に build し直すので通常は問題ありませんが、テストを途中で止めたときなどは
+> サイトに組み込む前に `dist/index.mjs` に `"routes"` が入っているか確認してください。
+> 抜けていると公開ルートが管理者専用扱いになり、`state` が `CSRF_REJECTED` を返してボタンが表示されません。
 
 ## 2. EmDash サイトに登録
 
