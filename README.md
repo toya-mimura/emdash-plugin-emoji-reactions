@@ -98,6 +98,14 @@ Comma-separated `key=emoji:label`, up to 6. Keys start with a lowercase letter. 
 per key, so renaming a key starts a new button; removing a key hides it but keeps its counts.
 The admin page follows the admin locale (Japanese or English).
 
+Two switches below the field control how the buttons look on your site:
+
+- **Show labels** (off by default): show the label next to each emoji. When off, the label is still
+  used as the tooltip and read out by screen readers.
+- **Show counts** (on by default): show how many readers picked each reaction. When off, the counts
+  are also left out of the public API, so they can't be read from the page. They keep being
+  counted and stay visible in the admin page.
+
 ## API
 
 | Route | Method | Input | Description |

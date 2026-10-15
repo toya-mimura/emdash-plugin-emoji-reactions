@@ -54,6 +54,17 @@ async function loadReactions(ctx: PluginContext): Promise<{ spec: string; defs: 
 	return defs.length > 0 ? { spec, defs } : { spec: DEFAULT_SPEC, defs: parseSpec(DEFAULT_SPEC) };
 }
 
+/** ボタンの見た目。ラベルは既定で非表示（ツールチップと読み上げには使う）、件数は既定で表示 */
+type Display = { labels: boolean; counts: boolean };
+
+async function loadDisplay(ctx: PluginContext): Promise<Display> {
+	const [labels, counts] = await Promise.all([
+		ctx.settings.get<boolean>("showLabels"),
+		ctx.settings.get<boolean>("showCounts"),
+	]);
+	return { labels: labels === true, counts: counts !== false };
+}
+
 // ---------- 投票者の識別 ----------
 
 /** サイトごとのランダムな塩。IPそのものは保存しない */
@@ -92,16 +103,19 @@ type VoteDoc = { contentId: string; reaction: string; updatedAt: string };
 
 const field = (key: string) => `c_${key}`;
 
-function shape(defs: ReactionDef[], doc: CountsDoc | null, mine: string | null) {
+/** 公開APIの応答。件数を非表示にしているときは件数そのものを返さない */
+function shape(defs: ReactionDef[], display: Display, doc: CountsDoc | null, mine: string | null) {
+	const n = (v: unknown) => Math.max(0, Number(v ?? 0));
 	return {
 		reactions: defs.map((d) => ({
 			key: d.key,
 			emoji: d.emoji,
 			label: d.label,
-			count: Math.max(0, Number(doc?.[field(d.key)] ?? 0)),
+			...(display.counts ? { count: n(doc?.[field(d.key)]) } : {}),
 		})),
-		total: Math.max(0, Number(doc?.total ?? 0)),
+		...(display.counts ? { total: n(doc?.total) } : {}),
 		mine,
+		display,
 	};
 }
 
@@ -156,7 +170,11 @@ const adminInteraction = z.discriminatedUnion("type", [
 		type: z.literal("form_submit"),
 		action_id: z.string(),
 		block_id: z.string().optional(),
-		values: z.object({ spec: z.string().max(400) }),
+		values: z.object({
+			spec: z.string().max(400),
+			showLabels: z.boolean().optional(),
+			showCounts: z.boolean().optional(),
+		}),
 	}),
 	z.object({
 		type: z.literal("block_action"),
@@ -184,6 +202,10 @@ const MESSAGES = {
 		save: "Save",
 		saved: "Saved",
 		invalid: "No valid buttons. Check the format.",
+		showLabels: "Show labels",
+		showLabelsHelp: "Off: labels are only used as tooltips and for screen readers.",
+		showCounts: "Show counts",
+		showCountsHelp: "Off: counts are hidden on your site and left out of the public API.",
 	},
 	ja: {
 		statPosts: "リアクションされた記事",
@@ -199,6 +221,10 @@ const MESSAGES = {
 		save: "保存",
 		saved: "保存しました",
 		invalid: "有効なボタンがありません。書式を確認してください",
+		showLabels: "ラベルを表示",
+		showLabelsHelp: "オフ: ラベルはツールチップと読み上げにだけ使います。",
+		showCounts: "件数を表示",
+		showCountsHelp: "オフ: サイトに件数を出さず、公開APIにも含めません。",
 	},
 } as const;
 
@@ -210,6 +236,7 @@ function messagesFor(locale: string | undefined): Messages {
 
 async function renderAdmin(ctx: PluginContext, t: Messages): Promise<BlockResponse> {
 	const { spec, defs } = await loadReactions(ctx);
+	const display = await loadDisplay(ctx);
 	const top = await ctx.storage.counts.query({ orderBy: { total: "desc" }, limit: 10 });
 	const totalDocs = await ctx.storage.counts.count();
 	const totalVotes = await ctx.storage.votes.count();
@@ -265,6 +292,20 @@ async function renderAdmin(ctx: PluginContext, t: Messages): Promise<BlockRespon
 						placeholder: DEFAULT_SPEC,
 						initial_value: spec,
 					},
+					{
+						type: "toggle",
+						action_id: "showLabels",
+						label: t.showLabels,
+						description: t.showLabelsHelp,
+						initial_value: display.labels,
+					},
+					{
+						type: "toggle",
+						action_id: "showCounts",
+						label: t.showCounts,
+						description: t.showCountsHelp,
+						initial_value: display.counts,
+					},
 				],
 				submit: { label: t.save, action_id: "save" },
 			},
@@ -287,12 +328,13 @@ const plugin: SandboxedPlugin = {
 				const { contentId, visitorId } = parsed.data;
 
 				const { defs } = await loadReactions(ctx);
+				const display = await loadDisplay(ctx);
 				const doc = (await ctx.storage.counts.get(contentId)) as CountsDoc | null;
 				const voter = await voterHash(ctx, routeCtx.requestMeta as Meta, visitorId);
 				const vote = voter
 					? ((await ctx.storage.votes.get(`${contentId}:${voter}`)) as VoteDoc | null)
 					: null;
-				return { ok: true, ...shape(defs, doc, vote?.reaction ?? null) };
+				return { ok: true, ...shape(defs, display, doc, vote?.reaction ?? null) };
 			},
 		},
 
@@ -348,7 +390,7 @@ const plugin: SandboxedPlugin = {
 				}
 
 				const doc = await applyDelta(ctx, contentId, deltas);
-				return { ok: true, ...shape(defs, doc, mine) };
+				return { ok: true, ...shape(defs, await loadDisplay(ctx), doc, mine) };
 			},
 		},
 
@@ -370,6 +412,8 @@ const plugin: SandboxedPlugin = {
 					}
 					const normalized = defs.map((d) => `${d.key}=${d.emoji}:${d.label}`).join(", ");
 					await ctx.settings.set("spec", normalized);
+					if (it.values.showLabels !== undefined) await ctx.settings.set("showLabels", it.values.showLabels);
+					if (it.values.showCounts !== undefined) await ctx.settings.set("showCounts", it.values.showCounts);
 					return { ...(await renderAdmin(ctx, t)), toast: { message: t.saved, type: "success" } };
 				}
 				return renderAdmin(ctx, t);

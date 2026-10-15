@@ -32,8 +32,17 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 <script>
 	const API = "/_emdash/api/plugins/reactions";
 
-	type Reaction = { key: string; emoji: string; label: string; count: number };
-	type State = { ok: boolean; error?: string; reactions: Reaction[]; total: number; mine: string | null };
+	type Reaction = { key: string; emoji: string; label: string; count?: number };
+	type Display = { labels: boolean; counts: boolean };
+	type State = {
+		ok: boolean;
+		error?: string;
+		reactions: Reaction[];
+		total?: number;
+		mine: string | null;
+		/** Set in the plugin's admin page. Missing on plugin versions before 0.2.0. */
+		display?: Display;
+	};
 
 	/** Anonymous ID for environments without a client IP (local dev) */
 	function visitorId(): string | undefined {
@@ -89,6 +98,14 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 		}
 
 		#render(state: State) {
+			const showLabels = state.display?.labels ?? false;
+			const span = (cls: string, text: string, hidden = false) => {
+				const el = document.createElement("span");
+				el.className = cls;
+				el.textContent = text;
+				if (hidden) el.setAttribute("aria-hidden", "true");
+				return el;
+			};
 			this.#box.replaceChildren(
 				...state.reactions.map((r) => {
 					const btn = document.createElement("button");
@@ -96,10 +113,11 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 					btn.className = "rx-btn";
 					btn.setAttribute("aria-pressed", String(state.mine === r.key));
 					btn.title = r.label;
-					btn.innerHTML = `<span class="rx-emoji" aria-hidden="true"></span><span class="rx-count"></span><span class="rx-sr"></span>`;
-					btn.querySelector(".rx-emoji")!.textContent = r.emoji;
-					btn.querySelector(".rx-count")!.textContent = String(r.count);
-					btn.querySelector(".rx-sr")!.textContent = r.label;
+					btn.append(span("rx-emoji", r.emoji, true));
+					// Counts are omitted by the API when hidden in the admin page.
+					if (typeof r.count === "number") btn.append(span("rx-count", String(r.count)));
+					// Hidden labels stay readable for screen readers.
+					btn.append(span(showLabels ? "rx-label" : "rx-sr", r.label));
 					btn.addEventListener("click", () => this.#react(r.key));
 					return btn;
 				}),
@@ -179,6 +197,9 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 	.rx-emoji {
 		font-size: 1.25rem;
 		line-height: 1;
+	}
+	.rx-label {
+		font-size: 0.9rem;
 	}
 	.rx-count {
 		font-variant-numeric: tabular-nums;
