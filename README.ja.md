@@ -45,7 +45,7 @@ pnpm run build    # dist/ ができる
 サイトのフォルダで（reactions と同じ階層に置いた場合）:
 
 ```bash
-pnpm add file:../reactions
+pnpm add file:../emdash-plugin-emoji-reactions
 ```
 
 `astro.config.mjs`:

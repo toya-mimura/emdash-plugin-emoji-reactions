@@ -33,7 +33,7 @@ pnpm run build   # dist/
 From your site's folder (with this repo checked out next to it):
 
 ```bash
-pnpm add file:../emdash-plugin-reactions
+pnpm add file:../emdash-plugin-emoji-reactions
 ```
 
 `astro.config.mjs`:
