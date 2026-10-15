@@ -6,7 +6,7 @@
 	"publisher": "did:plc:rxq2ufvjf7l5fq2jirhgvvuw",
 
 	"license": "MIT",
-	"author": { "name": "may", "url": "https://bsky.app/profile/toya-mimura.bsky.social" },
+	"author": { "name": "toya", "url": "https://bsky.app/profile/toya-mimura.bsky.social" },
 	// GitHub private vulnerability reporting (Settings > Security で有効化が必要)
 	"security": { "url": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions/security/advisories/new" },
 	"repo": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions",
