@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createPluginTestHost, type PluginTestHost } from "@emdash-cms/plugin-test";
+import {
+	createPluginRuntimeTestHost,
+	createPluginTestHost,
+	type PluginRuntimeTestHost,
+	type PluginTestHost,
+} from "@emdash-cms/plugin-test";
 
 let host: PluginTestHost | undefined;
+let runtime: PluginRuntimeTestHost | undefined;
 
 afterEach(async () => {
 	await host?.dispose();
 	host = undefined;
+	await runtime?.dispose();
+	runtime = undefined;
 });
 
 const reader = (ip: string) => ({
@@ -17,9 +25,10 @@ const reader = (ip: string) => ({
 type State = {
 	ok: boolean;
 	error?: string;
-	reactions: Array<{ key: string; emoji: string; count: number }>;
-	total: number;
+	reactions: Array<{ key: string; emoji: string; label: string; count?: number }>;
+	total?: number;
 	mine: string | null;
+	display: { labels: boolean; counts: boolean };
 };
 
 const count = (s: State, key: string) => s.reactions.find((r) => r.key === key)?.count;
@@ -34,8 +43,10 @@ describe("reactions", () => {
 		)) as State;
 		expect(s.ok).toBe(true);
 		expect(s.reactions.map((r) => r.emoji)).toEqual(["💗", "🤔", "😗"]);
+		expect(s.reactions.map((r) => r.label)).toEqual(["Love", "Hmm", "Whoa"]);
 		expect(s.total).toBe(0);
 		expect(s.mine).toBeNull();
+		expect(s.display).toEqual({ labels: false, counts: true });
 	});
 
 	it("allows one reaction per reader: add, switch, and toggle off", async () => {
@@ -103,5 +114,55 @@ describe("reactions", () => {
 			{ ...reader("3.3.3.3"), method: "GET" },
 		)) as State;
 		expect(s.reactions.map((r) => r.key)).toEqual(["fire", "cry"]);
+	});
+
+	it("hides labels and counts when turned off in the admin page", async () => {
+		host = await createPluginTestHost();
+		await host.invokeRoute("react", { contentId: "post-1", reaction: "love" }, reader("1.1.1.1"));
+
+		const saved = (await host.invokeRoute("admin", {
+			type: "form_submit",
+			action_id: "save",
+			values: { spec: "love=💗:Love, hmm=🤔:Hmm", showLabels: true, showCounts: false },
+		})) as { toast?: { type: string } };
+		expect(saved.toast?.type).toBe("success");
+
+		const s = (await host.invokeRoute(
+			"state",
+			{ contentId: "post-1" },
+			{ ...reader("1.1.1.1"), method: "GET" },
+		)) as State;
+		expect(s.display).toEqual({ labels: true, counts: false });
+		expect(s.mine).toBe("love");
+		expect(s.total).toBeUndefined();
+		expect(s.reactions.every((r) => r.count === undefined)).toBe(true);
+
+		// react の応答にも件数を含めない
+		const r = (await host.invokeRoute("react", { contentId: "post-1", reaction: "hmm" }, reader("2.2.2.2"))) as State;
+		expect(r.total).toBeUndefined();
+		expect(JSON.stringify(r)).not.toContain('"count"');
+
+		// 集計自体は続いている（管理画面には出る）
+		const counts = (await host.storage("counts").get("post-1")) as { total: number };
+		expect(counts.total).toBe(2);
+	});
+
+	it("renders the admin page in the admin locale", async () => {
+		runtime = await createPluginRuntimeTestHost();
+		const en = JSON.stringify(await runtime.admin.loadPage("/reactions", { locale: "en" }));
+		expect(en).toContain("Top 10 posts");
+		const ja = JSON.stringify(await runtime.admin.loadPage("/reactions", { locale: "ja" }));
+		expect(ja).toContain("よく押された記事 Top 10");
+		expect(ja).toContain("件数を表示");
+
+		const saved = JSON.stringify(
+			await runtime.admin.submit("/reactions", "save", {
+				spec: "love=💗:Love",
+				showLabels: false,
+				showCounts: false,
+			}),
+		);
+		expect(saved).toContain("Saved");
+		expect(await runtime.inspect.setting("showCounts")).toBe(false);
 	});
 });
