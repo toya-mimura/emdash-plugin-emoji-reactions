@@ -142,7 +142,11 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 	if (!customElements.get("emdash-reactions")) customElements.define("emdash-reactions", EmDashReactions);
 </script>
 
-<style>
+<style is:global>
+	/*
+	 * Global on purpose: the buttons are created in the browser, so they don't carry
+	 * Astro's scoped-style attribute. Every rule is prefixed with emdash-reactions instead.
+	 */
 	emdash-reactions {
 		--rx-border: color-mix(in srgb, currentColor 18%, transparent);
 		/* Override --rx-accent from your theme to match your site's accent colour. */
@@ -155,18 +159,18 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 	emdash-reactions[aria-busy] {
 		opacity: 0.7;
 	}
-	.rx-heading {
+	emdash-reactions .rx-heading {
 		margin: 0 0 0.75rem;
 		font-size: 0.9rem;
 		opacity: 0.7;
 	}
-	.rx-buttons {
+	emdash-reactions .rx-buttons {
 		display: inline-flex;
 		flex-wrap: wrap;
 		justify-content: center;
 		gap: 0.5rem;
 	}
-	.rx-btn {
+	emdash-reactions .rx-btn {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
@@ -180,32 +184,32 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 		cursor: pointer;
 		transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
 	}
-	.rx-btn:hover {
+	emdash-reactions .rx-btn:hover {
 		transform: translateY(-1px);
 	}
-	.rx-btn:active {
+	emdash-reactions .rx-btn:active {
 		transform: scale(0.95);
 	}
-	.rx-btn[aria-pressed="true"] {
+	emdash-reactions .rx-btn[aria-pressed="true"] {
 		background: var(--rx-active);
 		border-color: var(--rx-active-border);
 	}
-	.rx-btn:focus-visible {
+	emdash-reactions .rx-btn:focus-visible {
 		outline: 2px solid var(--rx-active-border);
 		outline-offset: 2px;
 	}
-	.rx-emoji {
+	emdash-reactions .rx-emoji {
 		font-size: 1.25rem;
 		line-height: 1;
 	}
-	.rx-label {
+	emdash-reactions .rx-label {
 		font-size: 0.9rem;
 	}
-	.rx-count {
+	emdash-reactions .rx-count {
 		font-variant-numeric: tabular-nums;
 		font-size: 0.9rem;
 	}
-	.rx-sr {
+	emdash-reactions .rx-sr {
 		position: absolute;
 		width: 1px;
 		height: 1px;
@@ -213,11 +217,11 @@ const { contentId, heading = "Leave a reaction", label = "Reactions" } = Astro.p
 		clip: rect(0 0 0 0);
 		white-space: nowrap;
 	}
-	.rx-loading {
+	emdash-reactions .rx-loading {
 		opacity: 0.4;
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.rx-btn {
+		emdash-reactions .rx-btn {
 			transition: none;
 		}
 	}
