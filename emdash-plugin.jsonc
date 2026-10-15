@@ -2,13 +2,14 @@
 	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
 
 	"slug": "reactions",
-	// 自分のサイトで使うだけなら仮の値のままで動きます。
-	// レジストリに公開する場合は Atmosphere アカウントの DID に置き換えてください。
-	"publisher": "did:plc:replace-me",
+	// Atmosphere (Bluesky) account @toya-mimura.bsky.social
+	"publisher": "did:plc:rxq2ufvjf7l5fq2jirhgvvuw",
 
 	"license": "MIT",
-	"author": { "name": "may" },
-	"security": { "email": "security@example.com" },
+	"author": { "name": "may", "url": "https://bsky.app/profile/toya-mimura.bsky.social" },
+	// GitHub private vulnerability reporting (Settings > Security で有効化が必要)
+	"security": { "url": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions/security/advisories/new" },
+	"repo": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions",
 	"name": "Reactions",
 	"description": "Emoji reaction buttons for posts (one vote per reader).",
 	"keywords": ["reactions", "like", "emoji"],
