@@ -28,4 +28,14 @@
 	"admin": {
 		"pages": [{ "path": "/reactions", "label": "Reactions", "icon": "heart" }],
 	},
+
+	"sections": {
+		"description":  { "file": "./docs/description.md" },   // 機能・プライバシーの要点
+		"installation": { "file": "./docs/installation.md" },  // 手順1〜3（Reactions.astroの追加を強調）
+		"faq":          { "file": "./docs/faq.md" }            // ボタンが出ない時（CSRF_REJECTED）、同一IPの扱いなど
+	},
+
+	"release": {
+		"artifacts": { "icon": { "file": "./icon.png" } }
+	},
 }
