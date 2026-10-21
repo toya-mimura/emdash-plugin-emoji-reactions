@@ -7,6 +7,8 @@ pnpm install
 pnpm run build   # dist/
 ```
 
+When building from source, add the package to your site (`pnpm add file:../emdash-plugin-emoji-reactions`) and list it in `astro.config.mjs` under `sandboxed: [reactions]`.
+
 ### 2. Enable the plugin sandbox
 
 Sandboxed plugins need the Worker Loader binding. In `wrangler.jsonc` (commented out in the templates):

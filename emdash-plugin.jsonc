@@ -10,9 +10,10 @@
 	// GitHub private vulnerability reporting (Settings > Security で有効化が必要)
 	"security": { "url": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions/security/advisories/new" },
 	"repo": "https://github.com/toya-mimura/emdash-plugin-emoji-reactions",
-	"name": "Reactions",
-	"description": "Emoji reaction buttons for posts (one vote per reader).",
-	"keywords": ["reactions", "like", "emoji"],
+	// Registry card. 公開後の変更は `pnpm exec emdash-plugin update-package` で反映（publish では更新されない）
+	"name": "Emoji Reactions",
+	"description": "Emoji reaction buttons for your posts. One reaction per reader, optional counts, no cookies and no raw IPs stored.",
+	"keywords": ["reactions", "emoji", "like", "feedback", "privacy"],
 
 	// Trust contract
 	// 外部通信もコンテンツ読み取りも不要。プラグイン専用のstorage/settings/kvだけを使う。
@@ -32,7 +33,9 @@
 	"sections": {
 		"description":  { "file": "./docs/description.md" },   // 機能・プライバシーの要点
 		"installation": { "file": "./docs/installation.md" },  // 手順1〜3（Reactions.astroの追加を強調）
-		"faq":          { "file": "./docs/faq.md" }            // ボタンが出ない時（CSRF_REJECTED）、同一IPの扱いなど
+		"faq":          { "file": "./docs/faq.md" },           // ボタンが出ない時（CSRF_REJECTED）、同一IPの扱いなど
+		"changelog":    { "file": "./docs/changelog.md" },     // バージョンごとの変更点
+		"security":     { "file": "./docs/security.md" }       // 脆弱性の報告先・扱うデータ・公開ルート
 	},
 
 	"release": {
